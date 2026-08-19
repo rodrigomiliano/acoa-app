@@ -12,16 +12,20 @@ export interface ParsedDocument {
 
 export async function parsePDF(buffer: Buffer): Promise<ParsedDocument> {
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  const textResult = await parser.getText();
-  const info = await parser.getInfo();
-  return {
-    content: textResult.text || "",
-    metadata: {
-      type: "pdf",
-      pages: info.total,
-      title: info.info?.Title,
-    },
-  };
+  try {
+    const textResult = await parser.getText();
+    const info = await parser.getInfo();
+    return {
+      content: textResult.text || "",
+      metadata: {
+        type: "pdf",
+        pages: info.total,
+        title: info.info?.Title,
+      },
+    };
+  } finally {
+    await parser.destroy();
+  }
 }
 
 export async function parseDOCX(buffer: Buffer): Promise<ParsedDocument> {
@@ -40,7 +44,7 @@ export async function parseFile(
   filename: string
 ): Promise<ParsedDocument> {
   const ext = filename.toLowerCase().split(".").pop();
-  
+
   switch (ext) {
     case "pdf":
       return parsePDF(buffer);
