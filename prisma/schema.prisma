@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Project {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  documents   Document[]
+  analyses    Analysis[]
+  chatMessages ChatMessage[]
+}
+
+model Document {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  type      String   // pdf, docx, md
+  content   String   // parsed markdown content
+  size      Int
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Analysis {
+  id        String         @id @default(uuid())
+  projectId String
+  status    String         @default("pending") // pending, running, completed, failed
+  startedAt DateTime       @default(now())
+  endedAt   DateTime?
+  project   Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps     AnalysisStep[]
+}
+
+model AnalysisStep {
+  id         String   @id @default(uuid())
+  analysisId String
+  agent      String   // analyst, reviewer, editor, coverage
+  status     String   @default("pending") // pending, running, completed, failed, pending_approval
+  input      String   // JSON input
+  output     String?  // JSON output
+  approved   Boolean? // null = pending, true = approved, false = rejected
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  analysis   Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  projectId String
+  role      String   // user, assistant
+  content   String
+  context   String?  // JSON with RAG context
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Memory {
+  id        String   @id @default(uuid())
+  projectId String
+  type      String   // analysis_summary, decision, insight
+  content   String
+  createdAt DateTime @default(now())
+}
