@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 
 interface Document {
   id: string;
@@ -37,10 +36,14 @@ export default function AnalyzePage() {
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [running, setRunning] = useState(false);
   const [currentAnalysis, setCurrentAnalysis] = useState<Analysis | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetchDocuments();
     fetchAnalyses();
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, [params.id]);
 
   async function fetchDocuments() {
@@ -60,7 +63,6 @@ export default function AnalyzePage() {
 
     setRunning(true);
     try {
-      // Create analysis
       const createRes = await fetch(`/api/projects/${params.id}/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -68,14 +70,12 @@ export default function AnalyzePage() {
       });
       const { analysisId } = await createRes.json();
 
-      // Start pipeline
       await fetch(`/api/projects/${params.id}/analyze/start`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analysisId, documentId: selectedDoc }),
       });
 
-      // Poll for updates
       pollAnalysis(analysisId);
     } catch (error) {
       console.error("Failed to start analysis:", error);
@@ -83,22 +83,34 @@ export default function AnalyzePage() {
     }
   }
 
-  async function pollAnalysis(analysisId: string) {
-    const interval = setInterval(async () => {
-      const res = await fetch(
-        `/api/projects/${params.id}/analyze?analysisId=${analysisId}`
-      );
-      const analysis = await res.json();
-      
-      setCurrentAnalysis(analysis);
-      
-      if (analysis.status === "completed" || analysis.status === "failed") {
-        clearInterval(interval);
-        setRunning(false);
-        fetchAnalyses();
-      }
-    }, 2000);
-  }
+  const pollAnalysis = useCallback(
+    (analysisId: string) => {
+      if (pollRef.current) clearInterval(pollRef.current);
+
+      pollRef.current = setInterval(async () => {
+        try {
+          const res = await fetch(
+            `/api/projects/${params.id}/analyze?analysisId=${analysisId}`
+          );
+          const analysis = await res.json();
+
+          setCurrentAnalysis(analysis);
+
+          if (analysis.status === "completed" || analysis.status === "failed") {
+            if (pollRef.current) clearInterval(pollRef.current);
+            pollRef.current = null;
+            setRunning(false);
+            fetchAnalyses();
+          }
+        } catch {
+          if (pollRef.current) clearInterval(pollRef.current);
+          pollRef.current = null;
+          setRunning(false);
+        }
+      }, 5000);
+    },
+    [params.id]
+  );
 
   function getStepIcon(agent: string) {
     switch (agent) {

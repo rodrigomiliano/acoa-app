@@ -3,7 +3,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
 export const geminiModel = genAI.getGenerativeModel({
-  model: "gemini-2.0-flash",
+  model: "gemini-3.6-flash",
 });
 
 export interface GeminiResponse {
@@ -20,7 +20,7 @@ export async function generateWithGemini(
 ): Promise<GeminiResponse> {
   const model = systemInstruction
     ? genAI.getGenerativeModel({
-        model: "gemini-2.0-flash",
+        model: "gemini-3.6-flash",
         systemInstruction,
       })
     : geminiModel;
